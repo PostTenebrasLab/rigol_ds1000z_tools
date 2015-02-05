@@ -1,0 +1,5 @@
+
+    # TODO creer class scope contenant
+    #      les reglages d'un channel
+
+    # TODO creer les structures commandes
