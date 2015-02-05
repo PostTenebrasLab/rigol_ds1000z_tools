@@ -23,5 +23,9 @@ DEVICE="/dev/usbtmc0"
 
 ds1074 = rigol_ds1000z.RigolScope(DEVICE)
 # ds1074.acquire(channel='1')
-ds1074.acquire(channel='1', filename='pics/sin_output-02')#, plot=False)
+# ds1074.acquire(channel='1', filename='pics/sin_output-02')#, plot=False)
+a = rigol_ds1000z.Acquisition(DEVICE, 1)
 
+list = a.get_datas()
+
+print(list.__str__())
