@@ -24,12 +24,10 @@ import rigol_ds1000z
 
 DEVICE = "/dev/usbtmc0"
 
-scope = rigol_ds1000z.DS1000z(DEVICE)
+scope = rigol_ds1000z.DS1000z(DEVICE)               # new scope
 pl = []
-# ds1074.acquire(channel='1')
-# ds1074.acquire(channel='1', filename='pics/sin_output-02')#, plot=False)
 
-scope.channel[1].set_display(0)
+scope.channel[1].set_display(1)                     # turn channel 2 on
 scope.channel[1].update_state()
 
 for ch in scope.channel:
@@ -39,9 +37,10 @@ for ch in scope.channel:
     print("Time scale "+ch.get_timescale().__str__())
     print("Time offset "+ch.get_timeoffset().__str__()+"\n")
 
-scope.acquire()
-pl.append(scope.measures[0].plot(plot=False))  # keep the plot
-scope.measures[0].save_plot("./pics/test.png")
-# print(scope.measures[0].data)
+scope.acquire([1, 2])                              # acquire channel 1 and 2
+pl.append(scope.measures[0][1].plot(plot=False))   # keep the plot without plotting it
+scope.measures[0][0].save_plot("./pics/test.png")  # save measure 1 channel 1
+print(scope.measures[0][0].data.__len__())         # number of points measured
 
-pl[0].show()
+scope.measures[0][0].plot()                        # measure 1 channel 1
+scope.measures[0][1].plot()                        # measure 1 channel 2

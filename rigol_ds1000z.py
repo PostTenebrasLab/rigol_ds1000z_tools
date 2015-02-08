@@ -48,7 +48,7 @@ class Channel:
     BUFFER = 20
 
     def __init__(self, channel, cmd, probe_ratio=PROBE_RATIO[9]):
-        self.channel = channel
+        self.channel = channel.__str__()
         self.cmd = cmd
         self.display = self.get_display()
         self.probe_ratio = probe_ratio
@@ -63,7 +63,6 @@ class Channel:
     def update_state(self):
         """ update all field from the actual scope state
 
-
         """
         self.display = self.get_display()
         self.probe_ratio = self.get_probe_ration()
@@ -72,7 +71,21 @@ class Channel:
         self.timescale = self.get_timescale()
         self.timeoffset = self.get_timeoffset()
 
+    def restore_state(self):
+        """ put the scope in this saved state
+
+        """
+        # self.set_display(self.display)
+        self.set_voltscale(self.voltscale)
+        self.set_voltoffset(self.voltoffset)
+        self.set_timescale(self.timescale)
+        self.set_timeoffset(self.timeoffset)
+
     def get_display(self):
+        """ Is the channel displayed  True/False
+
+        :return: boolean (channel ON/OFF)
+        """
         return self.cmd.get(":CHAN"+self.channel+":DISPlay?", self.BUFFER)
 
     def set_display(self, state):
@@ -90,19 +103,19 @@ class Channel:
         return float(self.cmd.get(":CHAN"+self.channel+":SCAL?", self.BUFFER))  # Get the voltage scale
 
     def set_voltscale(self, scale):
-        self.cmd.write(":CHAN"+self.channel+":SCAL "+scale)
+        self.cmd.write(":CHAN"+self.channel+":SCAL "+scale.__str__())
 
     def get_probe_ration(self):
         return float(self.cmd.get(":CHAN"+self.channel+":PROBe?", self.BUFFER))
 
     def set_probe_ratio(self, value):
-        self.cmd.write(":CHAN"+self.channel+":PROBe "+value)
+        self.cmd.write(":CHAN"+self.channel+":PROBe "+value.__str__())
 
     def get_voltoffset(self):
         return float(self.cmd.get(":CHAN"+self.channel+":OFFS?", self.BUFFER)) # And the voltage offset
 
     def set_voltoffset(self, value):
-        self.cmd.write(":CHAN"+self.channel+":OFFS "+value)
+        self.cmd.write(":CHAN"+self.channel+":OFFS "+value.__str__())
 
     def get_timescale(self):
         return float(self.cmd.get(":TIMebase:SCALe?", self.BUFFER))     # Get the timescale
@@ -114,10 +127,10 @@ class Channel:
         return float(self.cmd.get(":TIM:OFFS?", self.BUFFER))    # Get the timescale offset
 
     def set_timeoffset(self, value):
-        return float(self.cmd.write(":TIM:OFFS ", value))
+        self.cmd.write(":TIM:OFFS "+value.__str__())
 
 
-class Acquire:
+class Acquisition:
     """ acquire a plot from oscilloscope
 
         :param channel: channel number
@@ -128,20 +141,23 @@ class Acquire:
     def __init__(self, channel, cmd):
         self.cmd = cmd
         self.title = "Channel "
-        self.channel = channel
+        self.channel = Channel(channel, self.cmd)
+        self.channel.update_state()
         self.unit = ["S", "mS", "uS", "nS"]
         self.data = []
         self.time = []
         self.rate = self.cmd.get(":ACQuire:SRATe?", 20)
 
     def get_data(self):
+        tmp_state = Channel(self.channel.get_channel_nb(), self.cmd)  # save actual state
+        self.channel.restore_state()
         self.cmd.write(":STOP")
         print(self.rate.__str__())
         self.rate = self.cmd.get(":ACQuire:SRATe?", 20)
         self.cmd.write(":WAVeform:SOURce CHAN"+self.channel.get_channel_nb())
         self.cmd.write(":WAVeform:MODE NORM")
         self.cmd.write(":WAVeform:FORMat ASCII")
-        self.cmd.write(":RUN")
+        # self.cmd.write(":RUN")
         self.cmd.write(":KEY:FORC")
         self.channel.update_state()
         raw = self.cmd.get(":WAV:DATA? CHAN"+self.channel.get_channel_nb().__str__(), 119890)
@@ -154,6 +170,8 @@ class Acquire:
             self.channel.set_timescale(float(self.channel.get_timescale())*1000)
             self.time = [x*1000 for x in time]    # correct plot axis
             self.unit.pop(0)                      # units might be the next one
+
+        tmp_state.restore_state()                 # restore previous state
 
     def plot(self, plot=True):
         """ pretty print data (plot)
@@ -183,9 +201,10 @@ class Acquire:
 
 
 class DS1000z:
-    """ Class to control a Rigol DS1000 series oscilloscope """
+    """ Class to control a Rigol DS1000 series oscilloscope
 
-    probes = {1, 2, 3, 4}     # those scopes have 4 channel
+    """
+    nb_of_channel = range(1, 5)     # those scopes have 4 channel
 
     def __init__(self, device):
         """ constructor
@@ -196,11 +215,10 @@ class DS1000z:
         self.name = self.cmd.get_name()
         print(self.name+" initialized")
         self.channel = []
-        for probe in self.probes:
-            self.channel.append(Channel(probe.__str__(), self.cmd))
-        for probe in self.channel:
-            probe.update_state()
-        self.measures = []
+        for chan in self.nb_of_channel:       # Create each channel state
+            self.channel.append(Channel(chan.__str__(), self.cmd))
+            self.channel[-1].update_state()
+        self.measures = []              # Acquisitions are placed in this list
 
     def write(self, command):
         """ send an action command (no return from the scope)
@@ -218,14 +236,21 @@ class DS1000z:
         """
         return self.cmd.read(command, length)
 
-    def acquire(self):
-        """ append new acquisition to measure list
+    def acquire(self, channel_lst):
+        """ append new acquisition(s) to measure list
 
         :return: id of the measure (self.measure[id])
         """
-        self.measures.append(Acquire(self.channel[0], self.cmd))
-        self.measures[-1].get_data()
-        return self.measures.__len__()
+        lst = []
+        for chan in self.nb_of_channel:
+            m = Acquisition(chan, self.cmd)
+            if chan in channel_lst:
+
+                m.get_data()
+            lst.append(m)
+
+        self.measures.append(lst)
+        return self.measures.__len__()  # the measure id
 
 
 class RigolCmd:
@@ -246,18 +271,12 @@ class RigolCmd:
             'wait': "*WAI"
         }
 
-    def __acquire(self, cmd):
-        return self.__acquire_cmd[cmd]
-
-    def __ieee488_2(self, cmd):
-        return self.__ieee488_2[cmd]
-
     def get_name(self):
         """ Get device name """
         return self.oscillo.get(self.__ieee488_2['name'], 20)
 
     def restore_default(self):
-        """ Send reset device command """
+        """ Send restore device command """
         self.oscillo.write(self.__ieee488_2['restore_default'])
 
     def get(self, command, length=4096):
