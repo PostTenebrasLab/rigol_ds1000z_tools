@@ -17,6 +17,7 @@ import sys
 import os
 import matplotlib.pyplot as pyplot
 
+
 class UsbTMC:
     """ Simple implementation of a USBTMC device driver """
 
@@ -29,102 +30,16 @@ class UsbTMC:
 
     def write(self, command):
         """ write a command to device """
-        os.write(self.f, command.encode())
+        os.write(int(self.f), command.encode())
 
     def get(self, command, length=4096):
         """ Read a command from device """
         self.write(command)
-        return os.read(self.f, length).decode()
+        return os.read(int(self.f), length).decode()
 
     def read(self, length=4096):
         """ Read a command from device """
-        return os.read(self.f, length)
-
-
-class Acquisition:
-    """ Class who collect datas and acquisition state from the scope
-
-    """
-    def __init__(self, device, channel, mode='NORM', form='ASCII'):
-        self.oscillo = UsbTMC(device)
-        self.mode = mode
-        self.channel = channel.__str__()
-        self.title = "Channel "+self.channel
-        self.format = form
-        self.name = self.oscillo.get_name()
-        self.rate = self.oscillo.get(":ACQuire:SRATe?", 20)
-        self.mem_depth = self.oscillo.get(":ACQuire:MDEPth?", 20)
-        self.voltscale = float(self.oscillo.get(":CHAN"+self.channel+":SCAL?", 20))  # Get the voltage scale
-        self.voltoffset = float(self.oscillo.get(":CHAN"+self.channel+":OFFS?", 20)) # And the voltage offset
-        self.timescale = float(self.oscillo.get(":TIM:SCAL?", 20))     # Get the timescale
-        self.timeoffset = float(self.oscillo.get(":TIM:OFFS?", 20))    # Get the timescale offset
-        self.data = []
-        self.__acquire()
-
-    def refresh_state(self):
-        self.name = self.oscillo.get_name()
-        self.rate = self.oscillo.get(":ACQuire:SRATe?", 20)
-        self.mem_depth = self.oscillo.get(":ACQuire:MDEPth?", 20)
-        self.voltscale = float(self.oscillo.get(":CHAN"+self.channel+":SCAL?", 20))  # Get the voltage scale
-        self.voltoffset = float(self.oscillo.get(":CHAN"+self.channel+":OFFS?", 20)) # And the voltage offset
-        self.timescale = float(self.oscillo.get(":TIM:SCAL?", 20))     # Get the timescale
-        self.timeoffset = float(self.oscillo.get(":TIM:OFFS?", 20))    # Get the timescale offset
-
-    def set_mode(self, mode):
-        self.mode = mode
-
-    def set_format(self, form):
-        self.format = form
-
-    def set_mem_depth(self, mem):
-        """ set the memory depth
-
-        When a single channel is on: {AUTO|12000|120000|1200000|12000000|24000000}
-        When dual channels are on: {AUTO|6000|60000|600000|6000000|12000000}
-        When four channels are on: {AUTO|3000|30000|300000|3000000|6000000}
-        Wherein, 24000000, 12000000 and 6000000 are optional.
-        :param mem:
-        :return:
-        """
-        self.oscillo.write(":ACQuire:MDEPth "+mem)
-        self.mem_depth = self.get_mem_depth()
-
-    def get_mem_depth(self):
-        return self.oscillo.get(":ACQuire:MDEPth?", 20)
-
-    def get_data(self):
-        return self.data
-
-    def __acquire(self):
-        self.data.clear()
-        # refresh the actual state (!! state and datas must be synchronised to be relevant !!)
-        self.refresh_state()
-        # Set the channel of which waveform data will be read.
-        self.oscillo.write(":WAVeform:SOURce CHAN"+self.channel)
-        # Set the reading mode used by :WAVeform:DATA?
-        self.oscillo.write(":WAVeform:MODE "+self.mode)
-        if self.mode is "RAW":
-            self.oscillo.write(":STOP")
-        # Set or query the return format of the waveform data.
-        self.oscillo.write(":WAVeform:FORMat "+self.format)
-        # header = self.oscillo.read(10).decode()
-        # print(header.__str__())
-        data = self.oscillo.get(":WAV:DATA? CHAN"+self.channel, 119890).decode().split(',')
-        # print(raw.__str__())
-        # data = raw.rsplit(",")
-        # header = data[0][6:10]
-        # print(header.__str__())
-        self.data = list(map(lambda x: float(x), data[1:]))
-
-        unit = ["S", "mS", "uS", "nS"]
-        time = [(x-data.__len__()/2)*self.timescale*12/1000 for x in range(0, data.__len__())]
-        time = [x+self.timeoffset for x in time]  # correct the time offset
-        while self.timescale <= .1:
-            self.timescale *= 1000
-            time = [x*1000 for x in time]    # correct plot axis
-            unit.pop(0)                      # units might be the next one
-        # Start data acquisition again, and put the scope back in local mode
-        self.oscillo.write(":RUN")
+        return os.read(int(self.f), length)
 
 
 class Channel:
@@ -211,11 +126,12 @@ class Acquire:
     """
 
     def __init__(self, channel, cmd):
-        self.cmd =cmd
+        self.cmd = cmd
         self.title = "Channel "
         self.channel = channel
-        self.plot = True
+        self.unit = ["S", "mS", "uS", "nS"]
         self.data = []
+        self.time = []
         self.rate = self.cmd.get(":ACQuire:SRATe?", 20)
 
     def get_data(self):
@@ -231,33 +147,51 @@ class Acquire:
         raw = self.cmd.get(":WAV:DATA? CHAN"+self.channel.get_channel_nb().__str__(), 119890)
         data = raw.rsplit(",")
         self.data = list(map(lambda x: float(x), data[1:]))
-        unit = ["S", "mS", "uS", "nS"]
-        time = [(x-self.data.__len__()/2)*self.channel.get_timescale()*12/1000 for x in range(0,self.data.__len__())]
-        time = [x+self.channel.get_timeoffset() for x in time]  # correct the time offset
+        time = [(x-self.data.__len__()/2)*self.channel.get_timescale()*12/1000 for x in range(0, self.data.__len__())]
+        self.time = [x+self.channel.get_timeoffset() for x in time]  # correct the time offset
+
         while self.channel.get_timescale() <= .1:
             self.channel.set_timescale(float(self.channel.get_timescale())*1000)
-            time = [x*1000 for x in time]    # correct plot axis
-            unit.pop(0)                      # units might be the next one
+            self.time = [x*1000 for x in time]    # correct plot axis
+            self.unit.pop(0)                      # units might be the next one
 
-        # Plot the data
-        pyplot.plot(time, self.data)
-        pyplot.title(self.title+self.channel.get_channel_nb())
-        pyplot.ylim((-4*self.channel.get_voltstate())-self.channel.get_voltoffset(),(4*self.channel.get_voltstate())-self.channel.get_voltoffset())
-        pyplot.ylabel("Voltage "+self.channel.get_voltstate().__str__()+" (V)")
-        pyplot.xlabel("Time (" + unit[0] + ")")
-        pyplot.xlim(time[0], time[-1])
-        # if filename:
-        #     pyplot.savefig(filename)
-        # if self.plot:
-        #     pyplot.show()
+    def plot(self, plot=True):
+        """ pretty print data (plot)
+
+        """
+        p = pyplot
+        p.plot(self.time, self.data)
+        p.title(self.title+self.channel.get_channel_nb())
+        p.ylim((-4*self.channel.get_voltstate())-self.channel.get_voltoffset(),(4*self.channel.get_voltstate())-self.channel.get_voltoffset())
+        p.ylabel("Voltage "+self.channel.get_voltstate().__str__()+" (V)")
+        p.xlabel("Time (" + self.unit[0] + ")")
+        p.xlim(self.time[0], self.time[-1])
+        if plot:
+            pyplot.show()
+        return p
+
+    def save_plot(self, filename):
+        """ save the plot in a file
+
+        :param filename:
+        """
+        self.plot(plot=False)
+        try:
+            pyplot.savefig(filename.__str__())
+        except FileNotFoundError as e:
+            os.write(sys.stderr, e)
 
 
 class DS1000z:
     """ Class to control a Rigol DS1000 series oscilloscope """
 
-    probes = {1, 2, 3, 4}
+    probes = {1, 2, 3, 4}     # those scopes have 4 channel
 
     def __init__(self, device):
+        """ constructor
+
+        :param device: device (/dev/usbtcmX)
+        """
         self.cmd = RigolCmd(device)
         self.name = self.cmd.get_name()
         print(self.name+" initialized")
@@ -266,29 +200,37 @@ class DS1000z:
             self.channel.append(Channel(probe.__str__(), self.cmd))
         for probe in self.channel:
             probe.update_state()
+        self.measures = []
 
     def write(self, command):
+        """ send an action command (no return from the scope)
+
+        :param command: command to be send (ex. :CHAN3:DISP OFF)
+        """
         self.cmd.write(command)
 
-    def read(self, command, lenght=4096):
-        return self.cmd.read(command, lenght)
+    def read(self, command, length=4096):
+        """ send a cmd to the scope and return it
+
+        :param command: command to be send (ex. :ACQuire:TYPE?)
+        :param length: buffer length
+        :return: value returned by the scope
+        """
+        return self.cmd.read(command, length)
 
     def acquire(self):
-        test = Acquire(self.channel[0], self.cmd)
-        # test.get_data('pics/sin_output-03')
-        test.get_data()
+        """ append new acquisition to measure list
 
-        # Set or query the channel of which waveform data will be read.
-        # Set or query the reading mode used by :WAVeform:DATA?
-        # Set or query the return format of the waveform data.
-        # Start data acquisition again, and put the scope back in local mode
+        :return: id of the measure (self.measure[id])
+        """
+        self.measures.append(Acquire(self.channel[0], self.cmd))
+        self.measures[-1].get_data()
+        return self.measures.__len__()
 
 
 class RigolCmd:
-
     def __init__(self, device):
         self.oscillo = UsbTMC(device)
-        # self.name = self.get_name()
         self.__acquire_cmd = {
             'average':  ":ACQuire:AVERages",
             'mode': ":ACQuire:MDEPth",
