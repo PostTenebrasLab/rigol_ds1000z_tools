@@ -27,15 +27,16 @@ DEVICE = "/dev/usbtmc0"
 scope = rigol_ds1000z.DS1000z(DEVICE)               # new scope
 pl = []
 
-scope.channel[1].set_display(1)                     # turn channel 2 on
+
+scope.channel[1].cmd.set_display(True, '1')                     # turn channel 2 on
 scope.channel[1].update_state()
 
 for ch in scope.channel:
-    print("Channel "+ch.get_channel_nb()+" "+ch.get_display())
-    print("Volt state "+ch.get_voltstate().__str__())
-    print("Volt offset "+ch.get_voltoffset().__str__())
-    print("Time scale "+ch.get_timescale().__str__())
-    print("Time offset "+ch.get_timeoffset().__str__()+"\n")
+    print("Channel "+ch.channel+" "+ch.get_display())
+    print("Volt state "+ch.get_volt_scale().__str__())
+    print("Volt offset "+ch.get_volt_offset().__str__())
+    print("Time scale "+ch.get_time_scale().__str__())
+    print("Time offset "+ch.get_time_offset().__str__()+"\n")
 
 scope.acquire([1, 2])                              # acquire channel 1 and 2
 pl.append(scope.measures[0][1].plot(plot=False))   # keep the plot without plotting it

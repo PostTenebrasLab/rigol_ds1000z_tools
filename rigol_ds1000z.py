@@ -33,7 +33,7 @@ class DS1000z:
         """
         self.cmd = ds1074z_cmd.DS1074zCommands(device)
         self.name = self.cmd.get_name()
-        print(self.name+" initialized")
+        print(self.name+"...scope initialized")
         self.channel = []
         for chan in self.nb_of_channel:       # Create each channel state
             self.channel.append(Channel(chan.__str__(), self.cmd))
@@ -63,7 +63,8 @@ class DS1000z:
         """
         lst = []
         for chan in self.nb_of_channel:
-            m = Acquisition(chan, self.cmd)
+            c = Channel(self.channel,self.cmd)
+            m = Acquisition(c)
             if chan in channel_lst:
 
                 m.get_data()
@@ -72,96 +73,87 @@ class DS1000z:
         self.measures.append(lst)
         return self.measures.__len__()  # the measure id
 
-
-
+    def get_rate(self):
+        return self.cmd.get_rate()
 
 
 class Channel:
 
     PROBE_RATIO = 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000
-    BUFFER = 20
 
     def __init__(self, channel, cmd, probe_ratio=PROBE_RATIO[9]):
         self.channel = channel.__str__()
         self.cmd = cmd
-        self.display = self.get_display()
+        self.display = self.cmd.get_display(self.channel)
         self.probe_ratio = probe_ratio
         if probe_ratio is not self.PROBE_RATIO[9]:
-            self.set_probe_ratio(probe_ratio)
+            self.cmd.set_probe_ratio(probe_ratio, channel)
 
-        self.voltscale = self.get_voltstate()
-        self.voltoffset = self.get_voltoffset()
-        self.timescale = self.get_timescale()
-        self.timeoffset = self.get_timeoffset()
+        self.volt_scale = self.get_volt_scale()
+        self.volt_offset = self.get_volt_offset()
+        self.time_scale = self.get_time_scale()
+        self.time_offset = self.get_time_offset()
 
     def update_state(self):
         """ update all field from the actual scope state
 
         """
         self.display = self.get_display()
-        self.probe_ratio = self.get_probe_ration()
-        self.voltscale = self.get_voltstate()
-        self.voltoffset = self.get_voltoffset()
-        self.timescale = self.get_timescale()
-        self.timeoffset = self.get_timeoffset()
+        self.probe_ratio = self.get_probe_ratio()
+        self.volt_scale = self.get_volt_scale()
+        self.volt_offset = self.get_volt_offset()
+        self.time_scale = self.get_time_scale()
+        self.time_offset = self.get_time_offset()
 
     def restore_state(self):
         """ put the scope in this saved state
 
         """
-        # self.set_display(self.display)
-        self.set_voltscale(self.voltscale)
-        self.set_voltoffset(self.voltoffset)
-        self.set_timescale(self.timescale)
-        self.set_timeoffset(self.timeoffset)
+        self.set_display()
+        self.set_probe_ratio(self.probe_ratio)
+        self.set_volt_scale(self.volt_scale)
+        self.set_volt_offset(self.volt_offset)
+        self.set_time_scale(self.time_scale)
+        self.set_time_offset(self.time_offset)
+
+    def get_data(self):
+        return self.cmd.get_data(self.channel)
 
     def get_display(self):
-        """ Is the channel displayed  True/False
+        return self.cmd.get_display(self.channel)
 
-        :return: boolean (channel ON/OFF)
-        """
-        return self.cmd.get(":CHAN"+self.channel+":DISPlay?", self.BUFFER)
+    def set_display(self):
+        self.cmd.set_display(self.display, self.channel)
 
-    def set_display(self, state):
-        if state:
-            self.cmd.write(":CHAN"+self.channel+":DISPlay ON")
-            print(self.cmd.get(":CHAN"+self.channel+":DISPlay?", self.BUFFER).__str__())
-        else:
-            self.cmd.write(":CHAN"+self.channel+":DISPlay OFF")
-            print(self.cmd.get(":CHAN"+self.channel+":DISPlay?", self.BUFFER).__str__())
-
-    def get_channel_nb(self):
-        return self.channel
-
-    def get_voltstate(self):
-        return float(self.cmd.get(":CHAN"+self.channel+":SCAL?", self.BUFFER))  # Get the voltage scale
-
-    def set_voltscale(self, scale):
-        self.cmd.write(":CHAN"+self.channel+":SCAL "+scale.__str__())
-
-    def get_probe_ration(self):
-        return float(self.cmd.get(":CHAN"+self.channel+":PROBe?", self.BUFFER))
+    def get_probe_ratio(self):
+        return self.cmd.get_probe_ratio(self.channel)
 
     def set_probe_ratio(self, value):
-        self.cmd.write(":CHAN"+self.channel+":PROBe "+value.__str__())
+        self.cmd.set_probe_ratio(value, self.channel)
 
-    def get_voltoffset(self):
-        return float(self.cmd.get(":CHAN"+self.channel+":OFFS?", self.BUFFER)) # And the voltage offset
+    def get_volt_scale(self):
+        return self.cmd.get_volt_scale(self.channel)
 
-    def set_voltoffset(self, value):
-        self.cmd.write(":CHAN"+self.channel+":OFFS "+value.__str__())
+    def set_volt_scale(self, value):
+        self.cmd.set_volt_scale(value, self.channel)
 
-    def get_timescale(self):
-        return float(self.cmd.get(":TIMebase:SCALe?", self.BUFFER))     # Get the timescale
+    def get_volt_offset(self):
+        return self.cmd.get_volt_offset(self.channel)
 
-    def set_timescale(self, value):
-        self.cmd.write(":TIMebase:SCALe "+value.__str__())
+    def set_volt_offset(self, value):
+        self.cmd.set_volt_offset(value, self.channel)
 
-    def get_timeoffset(self):
-        return float(self.cmd.get(":TIM:OFFS?", self.BUFFER))    # Get the timescale offset
+    def get_time_scale(self):
+        return self.cmd.get_time_scale()
 
-    def set_timeoffset(self, value):
-        self.cmd.write(":TIM:OFFS "+value.__str__())
+    def set_time_scale(self, value):
+        self.cmd.set_time_scale(value, self.channel)
+
+    def get_time_offset(self):
+        return self.cmd.get_time_offset()
+
+    def set_time_offset(self, value):
+        self.cmd.set_time_offset(value, self.channel)
 
 
 class Acquisition:
@@ -172,40 +164,18 @@ class Acquisition:
         :param filename: save image as
     """
 
-    def __init__(self, channel, cmd):
-        self.cmd = cmd
+    def __init__(self, channel):
+        # self.cmd = cmd
         self.title = "Channel "
-        self.channel = Channel(channel, self.cmd)
+        self.channel = channel
         self.channel.update_state()
         self.unit = ["S", "mS", "uS", "nS"]
         self.data = []
         self.time = []
-        self.rate = self.cmd.get(":ACQuire:SRATe?", 20)
 
     def get_data(self):
-        tmp_state = Channel(self.channel.get_channel_nb(), self.cmd)  # save actual state
         self.channel.restore_state()
-        self.cmd.write(":STOP")
-        print(self.rate.__str__())
-        self.rate = self.cmd.get(":ACQuire:SRATe?", 20)
-        self.cmd.write(":WAVeform:SOURce CHAN"+self.channel.get_channel_nb())
-        self.cmd.write(":WAVeform:MODE NORM")
-        self.cmd.write(":WAVeform:FORMat ASCII")
-        # self.cmd.write(":RUN")
-        self.cmd.write(":KEY:FORC")
-        self.channel.update_state()
-        raw = self.cmd.get(":WAV:DATA? CHAN"+self.channel.get_channel_nb().__str__(), 119890)
-        data = raw.rsplit(",")
-        self.data = list(map(lambda x: float(x), data[1:]))
-        time = [(x-self.data.__len__()/2)*self.channel.get_timescale()*12/1000 for x in range(0, self.data.__len__())]
-        self.time = [x+self.channel.get_timeoffset() for x in time]  # correct the time offset
-
-        while self.channel.get_timescale() <= .1:
-            self.channel.set_timescale(float(self.channel.get_timescale())*1000)
-            self.time = [x*1000 for x in time]    # correct plot axis
-            self.unit.pop(0)                      # units might be the next one
-
-        tmp_state.restore_state()                 # restore previous state
+        self.data, self.time, self.unit = self.channel.get_data()
 
     def plot(self, plot=True):
         """ pretty print data (plot)
@@ -214,8 +184,8 @@ class Acquisition:
         p = pyplot
         p.plot(self.time, self.data)
         p.title(self.title+self.channel.get_channel_nb())
-        p.ylim((-4*self.channel.get_voltstate())-self.channel.get_voltoffset(),(4*self.channel.get_voltstate())-self.channel.get_voltoffset())
-        p.ylabel("Voltage "+self.channel.get_voltstate().__str__()+" (V)")
+        p.ylim((-4*self.channel.volt_scale)-self.channel.volt_offset,(4*self.channel.volt_scale)-self.channel.volt_offset)
+        p.ylabel("Voltage "+self.channel.volt_scale.__str__()+" (V)")
         p.xlabel("Time (" + self.unit[0] + ")")
         p.xlim(self.time[0], self.time[-1])
         if plot:
