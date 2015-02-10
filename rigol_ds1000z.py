@@ -15,31 +15,65 @@ __status__ = ""
 
 import sys
 import os
+import ds1074z_cmd
+
 import matplotlib.pyplot as pyplot
 
 
-class UsbTMC:
-    """ Simple implementation of a USBTMC device driver """
+class DS1000z:
+    """ Class to control a Rigol DS1000 series oscilloscope
+
+    """
+    nb_of_channel = range(1, 5)     # those scopes have 4 channel
 
     def __init__(self, device):
-        self.device = device
-        try:
-            self.f = os.open(self.device, os.O_RDWR)
-        except OSError as err:
-            print("Error opening device fd : {0}".format(err), file=sys.stderr)
+        """ constructor
+
+        :param device: device (/dev/usbtcmX)
+        """
+        self.cmd = ds1074z_cmd.DS1074zCommands(device)
+        self.name = self.cmd.get_name()
+        print(self.name+" initialized")
+        self.channel = []
+        for chan in self.nb_of_channel:       # Create each channel state
+            self.channel.append(Channel(chan.__str__(), self.cmd))
+            self.channel[-1].update_state()
+        self.measures = []              # Acquisitions are placed in this list
 
     def write(self, command):
-        """ write a command to device """
-        os.write(int(self.f), command.encode())
+        """ send an action command (no return from the scope)
 
-    def get(self, command, length=4096):
-        """ Read a command from device """
-        self.write(command)
-        return os.read(int(self.f), length).decode()
+        :param command: command to be send (ex. :CHAN3:DISP OFF)
+        """
+        self.cmd.write(command)
 
-    def read(self, length=4096):
-        """ Read a command from device """
-        return os.read(int(self.f), length)
+    def read(self, command, length=4096):
+        """ send a cmd to the scope and return it
+
+        :param command: command to be send (ex. :ACQuire:TYPE?)
+        :param length: buffer length
+        :return: value returned by the scope
+        """
+        return self.cmd.read(command, length)
+
+    def acquire(self, channel_lst):
+        """ append new acquisition(s) to measure list
+
+        :return: id of the measure (self.measure[id])
+        """
+        lst = []
+        for chan in self.nb_of_channel:
+            m = Acquisition(chan, self.cmd)
+            if chan in channel_lst:
+
+                m.get_data()
+            lst.append(m)
+
+        self.measures.append(lst)
+        return self.measures.__len__()  # the measure id
+
+
+
 
 
 class Channel:
@@ -199,94 +233,3 @@ class Acquisition:
         except FileNotFoundError as e:
             os.write(sys.stderr, e)
 
-
-class DS1000z:
-    """ Class to control a Rigol DS1000 series oscilloscope
-
-    """
-    nb_of_channel = range(1, 5)     # those scopes have 4 channel
-
-    def __init__(self, device):
-        """ constructor
-
-        :param device: device (/dev/usbtcmX)
-        """
-        self.cmd = RigolCmd(device)
-        self.name = self.cmd.get_name()
-        print(self.name+" initialized")
-        self.channel = []
-        for chan in self.nb_of_channel:       # Create each channel state
-            self.channel.append(Channel(chan.__str__(), self.cmd))
-            self.channel[-1].update_state()
-        self.measures = []              # Acquisitions are placed in this list
-
-    def write(self, command):
-        """ send an action command (no return from the scope)
-
-        :param command: command to be send (ex. :CHAN3:DISP OFF)
-        """
-        self.cmd.write(command)
-
-    def read(self, command, length=4096):
-        """ send a cmd to the scope and return it
-
-        :param command: command to be send (ex. :ACQuire:TYPE?)
-        :param length: buffer length
-        :return: value returned by the scope
-        """
-        return self.cmd.read(command, length)
-
-    def acquire(self, channel_lst):
-        """ append new acquisition(s) to measure list
-
-        :return: id of the measure (self.measure[id])
-        """
-        lst = []
-        for chan in self.nb_of_channel:
-            m = Acquisition(chan, self.cmd)
-            if chan in channel_lst:
-
-                m.get_data()
-            lst.append(m)
-
-        self.measures.append(lst)
-        return self.measures.__len__()  # the measure id
-
-
-class RigolCmd:
-    def __init__(self, device):
-        self.oscillo = UsbTMC(device)
-        self.__acquire_cmd = {
-            'average':  ":ACQuire:AVERages",
-            'mode': ":ACQuire:MDEPth",
-            'type': ":ACQuire:TYPE",
-            'sample': ":ACQuire:SRATe"
-        }
-
-        self.__ieee488_2 = {
-            'clear': "*CLS",
-            'name': "*IDN?",
-            'restore_default': "*RST",
-            'self_test': "*TST?",
-            'wait': "*WAI"
-        }
-
-    def get_name(self):
-        """ Get device name """
-        return self.oscillo.get(self.__ieee488_2['name'], 20)
-
-    def restore_default(self):
-        """ Send restore device command """
-        self.oscillo.write(self.__ieee488_2['restore_default'])
-
-    def get(self, command, length=4096):
-        """ Read a config value from the scope """
-        return self.oscillo.get(command, length)
-
-    def write(self, command):
-        """ Send an arbitrary command directly to the scope """
-        self.oscillo.write(command)
-
-    def read(self, command, length=4096):
-        """ Read directly from the scope """
-        return self.oscillo.read(command, length)
