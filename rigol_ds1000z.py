@@ -63,14 +63,13 @@ class DS1000z:
         """
         lst = []
         for chan in self.nb_of_channel:
-            c = Channel(self.channel,self.cmd)
+            c = Channel(chan, self.cmd)
             m = Acquisition(c)
             if chan in channel_lst:
-
                 m.get_data()
             lst.append(m)
-
         self.measures.append(lst)
+
         return self.measures.__len__()  # the measure id
 
     def get_rate(self):
@@ -84,7 +83,7 @@ class Channel:
     def __init__(self, channel, cmd, probe_ratio=PROBE_RATIO[9]):
         self.channel = channel.__str__()
         self.cmd = cmd
-        self.display = self.cmd.get_display(self.channel)
+        self.display = self.get_display()
         self.probe_ratio = probe_ratio
         if probe_ratio is not self.PROBE_RATIO[9]:
             self.cmd.set_probe_ratio(probe_ratio, channel)
@@ -117,7 +116,7 @@ class Channel:
         self.set_time_offset(self.time_offset)
 
     def get_data(self):
-        return self.cmd.get_data(self.channel)
+        return self.cmd.get_data(self)
 
     def get_display(self):
         return self.cmd.get_display(self.channel)
@@ -147,13 +146,13 @@ class Channel:
         return self.cmd.get_time_scale()
 
     def set_time_scale(self, value):
-        self.cmd.set_time_scale(value, self.channel)
+        self.cmd.set_time_scale(value)
 
     def get_time_offset(self):
         return self.cmd.get_time_offset()
 
     def set_time_offset(self, value):
-        self.cmd.set_time_offset(value, self.channel)
+        self.cmd.set_time_offset(value)
 
 
 class Acquisition:
@@ -183,7 +182,7 @@ class Acquisition:
         """
         p = pyplot
         p.plot(self.time, self.data)
-        p.title(self.title+self.channel.get_channel_nb())
+        p.title(self.title+self.channel.channel)
         p.ylim((-4*self.channel.volt_scale)-self.channel.volt_offset,(4*self.channel.volt_scale)-self.channel.volt_offset)
         p.ylabel("Voltage "+self.channel.volt_scale.__str__()+" (V)")
         p.xlabel("Time (" + self.unit[0] + ")")

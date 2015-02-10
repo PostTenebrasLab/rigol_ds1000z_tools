@@ -126,13 +126,13 @@ class DS1074zCommands:
     def get_data(self, channel):
         unit = ["S", "mS", "uS", "nS"]
         self.write(":STOP")
-        self.write(":WAVeform:SOURce CHAN"+channel)
+        self.write(":WAVeform:SOURce CHAN"+channel.channel)
         self.write(":WAVeform:MODE NORM")
         self.write(":WAVeform:FORMat ASCII")
-        raw = self.get(":WAV:DATA? CHAN"+channel, 119890)
+        raw = self.get(":WAV:DATA? CHAN"+channel.channel, 119890)
         data = raw.rsplit(",")
         data = list(map(lambda x: float(x), data[1:]))
-        time = [(x-data.__len__()/2)*channel.time_scale*12/1000 for x in range(0, data.__len__())]
+        time = [(x-data.__len__()/2)*float(channel.time_scale)*12/1000 for x in range(0, data.__len__())]
         time = [x+channel.time_offset for x in time]  # correct the time offset
 
         while channel.time_scale <= .1:

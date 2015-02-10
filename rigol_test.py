@@ -17,9 +17,6 @@ __licence__ = "GPL"
 __status__ = ""
 
 
-import os
-import sys
-import time
 import rigol_ds1000z
 
 DEVICE = "/dev/usbtmc0"
